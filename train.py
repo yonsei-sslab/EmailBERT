@@ -1,10 +1,12 @@
 import multiprocessing
 import numpy as np
+import torch
 from datasets import load_dataset
 from transformers import (
     AutoModelForMaskedLM,
     AutoTokenizer,
     DataCollatorForLanguageModeling,
+    EarlyStoppingCallback,
     TrainingArguments,
     Trainer,
 )
@@ -76,29 +78,53 @@ downsampled_dataset = lm_datasets["train"].train_test_split(
 )
 print(downsampled_dataset)
 # Show the training loss with every epoch
-logging_steps = len(downsampled_dataset["train"]) // CFG.batch_size
+epoch_step = len(downsampled_dataset["train"]) // (CFG.batch_size * torch.cuda.device_count())
 model_name = CFG.model_checkpoint.split("/")[-1]
 
-training_args = TrainingArguments(
-    output_dir=f"{model_name}-email-finetuned",
-    overwrite_output_dir=True,
-    learning_rate=CFG.learning_rate,
-    weight_decay=CFG.weight_decay,
-    warmup_ratio=CFG.warm_up_ratio,
-    per_device_train_batch_size=CFG.batch_size,
-    per_device_eval_batch_size=CFG.batch_size,
-    evaluation_strategy="epoch",
-    save_strategy="epoch",
-    num_train_epochs=CFG.num_train_epochs,
-    do_eval=True,
-    push_to_hub=True,
-    fp16=CFG.fp16,
-    logging_steps=CFG.logging_steps,
-    save_total_limit=CFG.save_total_limit,
-    metric_for_best_model="loss",
-    load_best_model_at_end=True,
-)
-
+if CFG.early_stop <= -1:
+    # no early stopping
+    training_args = TrainingArguments(
+        output_dir=f"{model_name}-email-finetuned",
+        overwrite_output_dir=True,
+        learning_rate=CFG.learning_rate,
+        weight_decay=CFG.weight_decay,
+        warmup_ratio=CFG.warm_up_ratio,
+        per_device_train_batch_size=CFG.batch_size,
+        per_device_eval_batch_size=CFG.batch_size,
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        num_train_epochs=CFG.num_train_epochs,
+        do_eval=True,
+        push_to_hub=True,
+        fp16=CFG.fp16,
+        gradient_checkpointing=CFG.gradient_checkpointing,
+        logging_steps=CFG.logging_steps,
+        save_total_limit=CFG.save_total_limit,
+        metric_for_best_model="loss",
+        load_best_model_at_end=True,
+    )
+elif CFG.early_stop > 0:
+    training_args = TrainingArguments(
+        output_dir=f"{model_name}-email-finetuned",
+        overwrite_output_dir=True,
+        learning_rate=CFG.learning_rate,
+        weight_decay=CFG.weight_decay,
+        warmup_ratio=CFG.warm_up_ratio,
+        per_device_train_batch_size=CFG.batch_size,
+        per_device_eval_batch_size=CFG.batch_size,
+        evaluation_strategy="steps",
+        eval_steps=epoch_step,
+        save_steps=epoch_step,
+        num_train_epochs=CFG.num_train_epochs,
+        do_eval=True,
+        push_to_hub=True,
+        fp16=CFG.fp16,
+        gradient_checkpointing=CFG.gradient_checkpointing,
+        logging_steps=CFG.logging_steps,
+        save_total_limit=CFG.save_total_limit,
+        metric_for_best_model="loss",
+        load_best_model_at_end=True,
+    )
 
 trainer = Trainer(
     model=model,
@@ -106,6 +132,7 @@ trainer = Trainer(
     train_dataset=downsampled_dataset["train"],
     eval_dataset=downsampled_dataset["test"],
     data_collator=data_collator,
+    callbacks=[EarlyStoppingCallback(early_stopping_patience=CFG.early_stop)],
 )
 
 trainer.train()
