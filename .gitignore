@@ -1,0 +1,9 @@
+roberta-base-email-finetuned
+roberta-base-finetuned-email
+*.ipynb
+*.csv
+*.zip
+*.txt
+wandb
+snoop2head
+__pycache__

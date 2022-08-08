@@ -1,0 +1,16 @@
+CFG:
+  model_checkpoint: roberta-base
+  data_path: snoop2head/enron_aeslc_emails # one of snoop2head/common_crawl, c4, openwebtext
+  chunk_size: 512
+  masking_probability: 0.15
+  whole_word_masking_probability: 0.2
+  train_size: 500000
+  test_size: 35703
+  seed: 42
+  learning_rate: 0.00002
+  weight_decay: 0.01
+  warm_up_ratio: 0.1
+  num_train_epochs: 3
+  fp16: true
+  logging_steps: 1000
+  save_total_limit: 5
