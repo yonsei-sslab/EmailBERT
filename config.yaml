@@ -6,6 +6,7 @@ CFG:
   whole_word_masking_probability: 0.2
   train_size: 500000
   test_size: 35703
+  batch_size: 30
   seed: 42
   learning_rate: 0.00002
   weight_decay: 0.01
